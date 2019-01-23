@@ -1,0 +1,147 @@
+---
+title: "CowCalfRatios"
+author: "HansMartin"
+date: "April 3, 2018"
+output: html_document
+---
+
+
+Load necessary packages for analysis. (not all of these are actually necessary... )
+```{r include=FALSE, echo=FALSE}
+#function to install and load required packages
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+#load or install these packages:
+packages <- c("ks", "lattice", "plotrix", "adehabitatHR", "maptools", "foreign", "rgdal", "sp", "raster",
+              "ggplot2","colorRamps","rgeos","leaflet","lubridate", "htmlwidgets","move", "tmap","grid","dplyr","lubridate","tydr")
+
+#run function to install packages
+ipak(packages)
+```
+
+
+```{r}
+obs<-read.csv("tELK_TELEM_Aug2018.csv",stringsAsFactors = F)
+```
+
+```{r}
+#colnames(obs)
+  
+obs$LMTday<-unlist(lapply(obs$Date,function(x) strsplit(x, split= "-")[[1]][1])) #extracts month
+obs$LMTmonth<-unlist(lapply(obs$Date,function(x) strsplit(x, split= "-")[[1]][2]))#extracts day
+obs$LMTyear<-unlist(lapply(obs$Date,function(x) strsplit(x, split= "-")[[1]][3]))#extracts year
+
+obs$LMT24date<-paste(obs$LMTyear,obs$LMTmonth,obs$LMTday, sep="-") #combines date by Year-month-day
+#elkdat$timestamp<-paste(elkdat$LMT24date,elkdat$LMT24time,sep=" ") #creates a timestamp
+#elkdat$timestamp<-strptime(elkdat$timestamp,format="%Y-%m-%d %H:%M:%S")
+#elkdat$LMTtimestamp<-as.POSIXlt(elkdat$timestamp, format="%Y-%m-%d %H:%M:%S",tz="America/Denver") #format the time stamp.
+```
+
+```{r}
+CowCalfRatios<-obs %>% group_by(LMTyear,LMTmonth) %>% summarise(Ratio=sum(YOY,na.rm=T)/sum(ADF+YLY.Female,na.rm=T))
+CowCalfRatiosSE<-obs %>% group_by(LMTyear,LMTmonth) %>% summarise(CowCalfSE=
+                                                                     sqrt(
+                                                                       ((sum(YOY,na.rm=T)/
+                                                                          sum(ADF+YLY.Female,na.rm=T)
+                                                                        )*(1-(sum(YOY,na.rm=T)/sum(ADF+YLY.Female,na.rm=T))))
+                                                                       /sum(ADF+YLY.Female+YOY, na.rm=T)
+                                                                              ))
+
+CowCalfRatio<-full_join(CowCalfRatios,CowCalfRatiosSE, by=c("LMTyear","LMTmonth"))
+CowCalfRatio$Month<-as.factor(CowCalfRatio$LMTmonth)
+levels(CowCalfRatio$Month)<-c("Jan","Feb","Mar","Apr","May","Jun", "Jul","Aug","Sep","Oct","Nov","Dec")
+
+
+ggplot(CowCalfRatio, aes(x=Month,y=Ratio, colour=LMTyear))+
+  geom_point()
+```
+
+```{r}
+
+SummerCowCalfRatios<-obs %>% 
+  filter(LMTmonth=="Jun"|LMTmonth=="Jul"|LMTmonth=="Aug",LMTyear!="91" ) %>% 
+  group_by(LMTyear) %>% 
+  summarise(
+    TotalClassified=sum(YOY+ADF+YLY.Female,na.rm=T),
+    GroupsClassified=length(which(!is.na(ADF))),
+    ADFTotal=sum(ADF+YLY.Female,na.rm=T),
+    YOYTotal=sum(YOY,na.rm=T),
+    CowCalfRatio=sum(YOY,na.rm=T)/sum(ADF+YLY.Female,na.rm=T),
+    CowCalfSE=sqrt(
+              (
+                (
+                  sum(YOY,na.rm=T) /
+                   sum(ADF+YLY.Female,na.rm=T)
+                 ) *
+                  (1-(
+                    sum(YOY,na.rm=T)
+                      /
+                        sum(ADF+YLY.Female,na.rm=T)
+                      )
+                   )
+                )
+              /sum(ADF+YLY.Female+YOY, na.rm=T)
+              )
+    
+            )
+SummerCowCalfRatios$Season<-"Summer"
+
+WinterCowCalfRatios<-obs %>% 
+  filter(LMTmonth=="Feb"|LMTmonth=="Mar"|LMTmonth=="Apr", LMTyear!="13") %>% 
+  group_by(LMTyear) %>% 
+  summarise(
+    TotalClassified=sum(YOY+ADF+YLY.Female,na.rm=T),
+    GroupsClassified=length(which(!is.na(ADF))),
+    ADFTotal=sum(ADF+YLY.Female,na.rm=T),
+    YOYTotal=sum(YOY,na.rm=T),
+    CowCalfRatio=sum(YOY,na.rm=T)/sum(ADF+YLY.Female,na.rm=T),
+    CowCalfSE=sqrt(
+              (
+                (
+                  sum(YOY,na.rm=T) /
+                   sum(ADF+YLY.Female,na.rm=T)
+                 ) *
+                  (1-(
+                    sum(YOY,na.rm=T)
+                      /
+                        sum(ADF+YLY.Female,na.rm=T)
+                      )
+                   )
+                )
+              /sum(ADF+YLY.Female+YOY, na.rm=T)
+              )
+    
+            )
+WinterCowCalfRatios$Season<-"Winter"
+
+cowcalfratios<-bind_rows(SummerCowCalfRatios,WinterCowCalfRatios)
+cowcalfratios$Season<-as.factor(cowcalfratios$Season)
+cowcalfratios$year<-ifelse(cowcalfratios$Season=="Winter",(as.numeric(cowcalfratios$LMTyear)-1+2000),as.numeric(cowcalfratios$LMTyear)+2000)
+#cowcalfratios<-cowcalfratios %>% filter(LMTyear!="1991"&LMTyear!="2012")
+ cowcalfratios[cowcalfratios$LMTyear=="1991",]
+dev.off()
+tiff("SummerandWinterCowCalfRatios.tif",width=8,height = 4, units=c("in"),compression=c("none"), res=600)
+ggplot(cowcalfratios,aes(x=year,y=CowCalfRatio,colour=Season, group=Season))+
+  geom_point()+
+  geom_line()+
+  ylim(c(0,1))+
+  geom_errorbar(aes(ymin=CowCalfRatio-CowCalfSE, ymax=CowCalfRatio+CowCalfSE), width=.1, col="black")+
+  theme_bw()+
+  scale_x_continuous("Biological Year", labels = as.character(cowcalfratios$year), breaks = cowcalfratios$year)+
+  labs(y="Cow:Calf Ratio",
+       x="Biological Year")+
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()) 
+       #expand_limits(y=0)+
+dev.off
+```
+ 
+

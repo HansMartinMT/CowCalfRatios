@@ -1,0 +1,56 @@
+---
+title: "BodyCondition"
+author: "HansMartin"
+date: "April 4, 2018"
+output: html_document
+---
+
+Load necessary packages for analysis. (not all of these are actually necessary... )
+```{r include=FALSE, echo=FALSE}
+#function to install and load required packages
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+#load or install these packages:
+packages <- c("ks", "lattice", "plotrix", "adehabitatHR", "maptools", "foreign", "rgdal", "sp", "raster",
+              "ggplot2","colorRamps","rgeos","leaflet","lubridate", "htmlwidgets","move", "tmap","grid","dplyr","tidyr")
+
+#run function to install packages
+ipak(packages)
+```
+
+Load data
+```{r}
+immob<-read.csv(file="ImmobilizationDataMarch2018.csv",stringsAsFactors = F)
+#format date
+#Format the date and time to create a time stamp. 
+
+#loc$LMT24time<-format(strptime(elkdat$LMT_Time,"%I:%M:%S %p"), format="%H:%M:%S") #this function will change 12 hour time to 24 hour time.
+  
+immob$LMTmonth<-unlist(lapply(immob$Date,function(x) strsplit(x, split= "/")[[1]][1])) #extracts month
+immob$LMTday<-unlist(lapply(immob$Date,function(x) strsplit(x, split= "/")[[1]][2]))#extracts day
+immob$LMTyear<-unlist(lapply(immob$Date,function(x) strsplit(x, split= "/")[[1]][3]))#extracts year
+
+caploc$LMT24date<-paste(immob$LMTyear,immob$LMTmonth,immob$LMTday, sep="-") #combines date by Year-month-day
+#elkdat$timestamp<-paste(elkdat$LMT24date,elkdat$LMT24time,sep=" ") #creates a timestamp
+#elkdat$timestamp<-strptime(elkdat$timestamp,format="%Y-%m-%d %H:%M:%S")
+#elkdat$LMTtimestamp<-as.POSIXlt(elkdat$timestamp, format="%Y-%m-%d %H:%M:%S",tz="America/Denver") #format the time stamp.
+# loc<-immob[caploc$LMTyear>=2018,]
+# loc<-loc[!is.na(loc$Species),]
+
+head(immob)
+
+
+```
+```{r}
+immob %>% group_by(LMTyear) %>% summarise(mean(BCS,na.rm=T))
+BodyCondition<-immob %>% group_by(LMTyear,Sex) %>% summarise(mean(BCS,na.rm=T))
+SD<-immob %>% group_by(LMTyear,Sex) %>% summarise(sd(BCS,na.rm=T))
+BodyCondition<-full_join(BodyCondition,SD, by=c("LMTyear","Sex"))
+
+write.csv(BodyCondition,file = "BCS.csv")
+```

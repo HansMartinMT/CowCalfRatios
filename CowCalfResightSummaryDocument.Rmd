@@ -1,0 +1,73 @@
+---
+title: "CowCalfResightSummary"
+author: "HansMartin"
+date: "July 29, 2018"
+output: html_document
+---
+Load necessary packages for analysis. (not all of these are actually necessary... )
+```{r include=FALSE, echo=FALSE}
+#function to install and load required packages
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+#load or install these packages:
+packages <- c("ks", "lattice", "plotrix", "adehabitatHR","ggplot2","lubridate",  "dplyr","lubridate","tydr")
+
+#run function to install packages
+ipak(packages)
+```
+Load the data as a csv file from the Access database
+```{r}
+d<-read.csv("ELK_CALF_OBSERVATIONS.csv",stringsAsFactors = F)
+#d$DATE<-as.Date(d$DATE, format="%m/%d/%Y")
+```
+
+
+```{r}
+ResightSummary<-d %>% 
+  mutate(new.Date=mdy(DATE),
+         Month=month(new.Date), 
+         Year=year(new.Date)
+         ) %>% 
+  filter(Month>"5" & Month<"9"& Year>"2016") %>% 
+  group_by(Year,ELK.ID) %>% 
+  summarise(NumberOfResights=n(),
+            TotalObs=sum(LENGTH.OF.OBSERVATION),
+            CalfPresence=ifelse(sum(CALF.PRESENT.)>0,1,0)
+            )  %>%
+  summarise(NumberofObs=mean(NumberOfResights),
+            SDnumberofObs=sd(NumberOfResights),
+            NumberofIndCows=n(),
+            CowsObs=sum(NumberOfResights),
+            CowsWithCalves=sum(CalfPresence), 
+            AvrgObs=mean(TotalObs),
+            SDObs=sd(TotalObs),
+            TotalObsTime=sum(TotalObs)/60,
+            RawSurvRate=sum(CalfPresence)/n()
+            )
+#writes the summary stats as a csv file
+#write.csv(ResightSummary,"ResightSummaryJuly_2018.csv")
+
+```
+
+```{r}
+summary2018<-d %>% 
+  mutate(new.Date=mdy(DATE),
+         Month=month(new.Date), 
+         Year=year(new.Date)
+         ) %>% 
+  filter(Month>"5" & Month<"9"& Year>"2017") %>% 
+  group_by(Year,ELK.ID) %>% 
+  summarise(NumberOfResights=n(),
+            ObsTime=sum(LENGTH.OF.OBSERVATION),
+            CalfPresence=ifelse(sum(CALF.PRESENT.)>0,1,0),
+            CalfAbsentObs=sum(CALF.PRESENT.==0),
+            CalfPresentObs=sum(CALF.PRESENT.==1)
+)
+#writes the summary stats as a csv file
+#write.csv(summary2018,"CowResightProgress.csv")
+```
